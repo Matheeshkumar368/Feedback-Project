@@ -54,7 +54,17 @@ const MessageSchema = new Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// 4. User Schema (Admin + Employee accounts)
+const UserSchema = new Schema({
+  username: { type: String, required: true, unique: true, trim: true },
+  password: { type: String, required: true }, // stored as plain text for demo simplicity
+  role: { type: String, enum: ['admin', 'employee'], required: true },
+  department: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now }
+});
+
 // Export Mongoose Models cleanly
 export const Form = mongoose.model('Form', FormSchema);
 export const Submission = mongoose.model('Submission', SubmissionSchema);
 export const Message = mongoose.model('Message', MessageSchema);
+export const User = mongoose.model('User', UserSchema);

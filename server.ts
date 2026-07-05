@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
-import { Form, Submission, Message } from './server/models.js';
+import { Form, Submission, Message, User } from './server/models.js';
 
 dotenv.config();
 
@@ -94,6 +94,13 @@ function broadcastRealtimeEvent(event: string, data: any) {
 // Seed data function to prepopulate application for instant professional look
 async function seedInitialData() {
   try {
+    // Seed default admin account
+    const adminExists = await User.findOne({ username: 'admin' });
+    if (!adminExists) {
+      await User.create({ username: 'admin', password: 'admin123', role: 'admin' });
+      console.log("Default admin user seeded: admin / admin123");
+    }
+
     const formCount = await Form.countDocuments();
     if (formCount === 0) {
       console.log("Seeding default feedback forms...");
@@ -475,6 +482,57 @@ app.post('/api/ai-chat', async (req, res) => {
   } catch (err: any) {
     console.error("AI Chat Error: ", err);
     res.status(500).json({ error: "Unable to process request with AI: " + err.message });
+  }
+});
+
+// ==========================================
+// AUTH ROUTES
+// ==========================================
+
+// Admin Login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required.' });
+    }
+    const user = await User.findOne({ username: username.trim(), role: 'admin' });
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: 'Invalid credentials. Please try again.' });
+    }
+    res.json({ success: true, role: 'admin', username: user.username });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Employee Register / Login (by name + department — creates account if new)
+app.post('/api/auth/employee', async (req, res) => {
+  try {
+    const { name, department } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Employee name is required.' });
+    }
+    const username = name.trim();
+    let user = await User.findOne({ username, role: 'employee' });
+    if (!user) {
+      // Auto-register new employee
+      user = await User.create({
+        username,
+        password: '',
+        role: 'employee',
+        department: department || 'General'
+      });
+    } else {
+      // Update department if changed
+      if (department && user.department !== department) {
+        user.department = department;
+        await user.save();
+      }
+    }
+    res.json({ success: true, role: 'employee', username: user.username, department: user.department });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
