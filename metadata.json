@@ -1,0 +1,6 @@
+{
+  "name": "AuraHR - Employee Feedback AI Agent",
+  "description": "A production-ready full-stack HR employee feedback collection platform featuring dynamic forms, beautiful dark analytics dashboard, employee Messaging, and deep Gemini AI sentiment & workload stress analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
