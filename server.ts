@@ -11,38 +11,50 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+// CORS — allow same-origin and Render preview URLs
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    'https://feedback-project-leb9.onrender.com',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+  const origin = req.headers.origin || '';
+  if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 const PORT = Number(process.env.PORT) || 3000;
 
 // Connect to MongoDB Atlas
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
-  console.error("MONGODB_URI environment variable is not set. Please configure it in your .env file.");
-  process.exit(1);
+  console.error("⚠️  MONGODB_URI is not set. Set it in Render Environment Variables.");
+} else {
+  console.log("Connecting to MongoDB...");
+  mongoose.connect(MONGODB_URI)
+    .then(() => {
+      console.log("✅ Successfully connected to MongoDB Atlas!");
+      seedInitialData();
+    })
+    .catch((err) => {
+      console.error("❌ MongoDB Connection Error: ", err.message);
+    });
 }
-console.log("Connecting to MongoDB...");
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log("Successfully connected to MongoDB Atlas!");
-    seedInitialData();
-  })
-  .catch((err) => {
-    console.error("MongoDB Connection Error: ", err);
-  });
 
 // Initialize Gemini SDK
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_API_KEY) {
-  console.error("GEMINI_API_KEY environment variable is not set. Please configure it in your .env file.");
-  process.exit(1);
+  console.error("⚠️  GEMINI_API_KEY is not set. AI features will not work.");
 }
-const ai = new GoogleGenAI({
+const ai = GEMINI_API_KEY ? new GoogleGenAI({
   apiKey: GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
-});
+  httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+}) : null;
 
 // Real-time Event Clients for Server-Sent Events (SSE)
 let sseClients: any[] = [];
@@ -263,6 +275,7 @@ app.post('/api/submissions', async (req, res) => {
     };
 
     try {
+      if (!ai) throw new Error('Gemini API key not configured.');
       const response = await ai.models.generateContent({
         model: 'gemini-3.5-flash',
         contents: promptText,
@@ -455,6 +468,9 @@ app.post('/api/ai-chat', async (req, res) => {
     if (!prompt) {
       return res.status(400).json({ error: "Prompt is required." });
     }
+    if (!ai) {
+      return res.status(503).json({ error: "AI service is not configured. Please set GEMINI_API_KEY." });
+    }
 
     // Get all feedbacks to feed into prompt context
     const subs = await Submission.find();
@@ -470,12 +486,10 @@ app.post('/api/ai-chat', async (req, res) => {
       : `You are the AuraHR Employee AI Coach, a supportive, confidential assistant helping employees deal with work-life balance, giving strategies to communicate with managers, or managing stress. 
          You do NOT reveal specific other employees' confidential details or names. Give actionable self-care, communication, and boundary-setting recommendations.`;
 
-    const response = await ai.models.generateContent({
+    const response = await ai!.models.generateContent({
       model: 'gemini-3.5-flash',
       contents: prompt,
-      config: {
-        systemInstruction
-      }
+      config: { systemInstruction }
     });
 
     res.json({ reply: response.text });

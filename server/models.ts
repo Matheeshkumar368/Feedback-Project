@@ -57,7 +57,7 @@ const MessageSchema = new Schema({
 // 4. User Schema (Admin + Employee accounts)
 const UserSchema = new Schema({
   username: { type: String, required: true, unique: true, trim: true },
-  password: { type: String, required: true }, // stored as plain text for demo simplicity
+  password: { type: String, default: '' }, // empty string allowed for employees (name-only login)
   role: { type: String, enum: ['admin', 'employee'], required: true },
   department: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now }
